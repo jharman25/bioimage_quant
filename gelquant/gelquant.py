@@ -154,7 +154,7 @@ def area_integrator(data, bounds, groups):
 
     return percentages
 
-def summary_plotter(dataset, labels, colorlist):
+def summary_plotter(datasets, labels, colorlist):
 
     plt.figure(figsize=(10,5))
     df = pd.DataFrame(datasets, columns=labels)
