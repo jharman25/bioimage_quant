@@ -124,8 +124,6 @@ def lane_parser(img, lanes, groups, baseline1, baseline2, tolerance=0.1, plot_ou
 
     shutil.rmtree("tmp/")
 
-    print("Done.")
-
     return final_data, all_bounds
 
 def area_integrator(data, bounds, groups):
@@ -154,17 +152,38 @@ def area_integrator(data, bounds, groups):
 
     return percentages
 
-def summary_plotter(datasets, labels, colorlist):
+def summary_plotter(datasets, labels, colorlist, regular_plot=True, df_input_plot=False):
 
-    plt.figure(figsize=(10,5))
-    df = pd.DataFrame(datasets, columns=labels)
-    plt.bar(range(len(df.columns)), df.mean(), align='center', yerr=df.std(), color=colorlist)
-    plt.xticks(range(len(df.columns)), df.columns, rotation=70, fontsize=14)
-    plt.plot([-1,int(len(df.columns))], [100, 100], "k--")
-    plt.ylim(0,120)
-    plt.title("Proteolytic susceptibility of calgranulin complexes", fontsize=20)
-    plt.ylabel("% remaining after PK treatment", fontsize=16)
-    plt.xlabel("Calgranulin complex", fontsize=16)
-    None
+    if regular_plot == True:
+
+        df = pd.DataFrame(datasets, columns=labels)
+
+        plt.figure(figsize=(10,5))
+        plt.bar(range(len(df.columns)), df.mean(), align='center', yerr=df.std()/len(df), color=colorlist, linewidth=1, edgecolor="black")
+        plt.xticks(range(len(df.columns)), df.columns, rotation=70, fontsize=14)
+        plt.plot([-1,int(len(df.columns))], [100, 100], "k--")
+        plt.ylim(0,120)
+        plt.title("Proteolytic susceptibility of calgranulin complexes", fontsize=20)
+        plt.ylabel("% remaining after PK treatment", fontsize=16)
+        plt.xlabel("Calgranulin complex", fontsize=16)
+        plt.text(len(labels)-0.2, 110, "n = " + str(len(df)))
+        None
+
+    # can build plot using df_input_plot if you feed it a dataframe directly via datasets
+
+    if df_input_plot == True:
+
+        df = datasets
+
+        plt.figure(figsize=(10,5))
+        plt.bar(range(len(df.columns)), df.mean(), align='center', yerr=df.std()/len(df), color=colorlist, linewidth=1, edgecolor="black")
+        plt.xticks(range(len(df.columns)), df.columns, rotation=70, fontsize=14)
+        plt.plot([-1,int(len(df.columns))], [100, 100], "k--")
+        plt.ylim(0,120)
+        plt.title("Proteolytic susceptibility of Proteins A-D", fontsize=20)
+        plt.ylabel("% remaining after PK treatment", fontsize=16)
+        plt.xlabel("Protein", fontsize=16)
+        plt.text(len(labels)-0.2, 110, "n = " + str(len(df)))
+        None
 
     return df
