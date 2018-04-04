@@ -163,9 +163,9 @@ def summary_plotter(datasets, labels, colorlist, regular_plot=True, df_input_plo
         plt.xticks(range(len(df.columns)), df.columns, rotation=70, fontsize=14)
         plt.plot([-1,int(len(df.columns))], [100, 100], "k--")
         plt.ylim(0,120)
-        plt.title("Proteolytic susceptibility of calgranulin complexes", fontsize=20)
+        plt.title("Proteolytic susceptibility of Proteins A-D", fontsize=20)
         plt.ylabel("% remaining after PK treatment", fontsize=16)
-        plt.xlabel("Calgranulin complex", fontsize=16)
+        plt.xlabel("Protein", fontsize=16)
         plt.text(len(labels)-0.2, 110, "n = " + str(len(df)))
         None
 
