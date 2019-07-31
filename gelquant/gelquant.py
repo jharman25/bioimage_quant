@@ -124,7 +124,7 @@ def lane_parser(img, lanes, groups, baseline1, baseline2, tolerance=0.1, plot_ou
             plt.ylim(-0.1, 0.7)
             plt.show()
 
-    shutil.rmtree("tmp/")
+    shutil.rmtree("tmp/", ignore_errors=True)
 
 
     return final_data, all_bounds[0]
@@ -189,77 +189,51 @@ def area_integrator(data, bounds, groups, plot_output=False):
         group = areas[i*index:i*index+index]
         sorted_areas.append(group)
 
-    percentages = []
+    sorted_areas = [item for sublist in sorted_areas for item in sublist]
 
-    for i in range(len(sorted_areas)):
-        for j in range(len(sorted_areas[0])):
-            if j != 0:
-                data_point = 100*sorted_areas[i][j]/sorted_areas[i][0]
-                percentages.append(data_point)
+    return sorted_areas/sorted_areas[0]
 
-    return percentages
+def summary_data(datasets, timepoints="", output="", p0=[7, 0.2], input_df = False):
 
-def summary_data(datasets, labels, timepoints, colorlist, p0=[100, 0.2], plot_title="", regular_plot=True, df_input_plot=False):
+    if input_df == True:
+        if type(datasets) != pd.core.frame.DataFrame:
+            df = pd.read_json(datasets)
+            plt.title(datasets)
+            df.to_json(output + ".json")
+        else:
+            df = datasets
+            df.to_json (output + ".json")
 
-    if regular_plot == True:
+    else:
 
-        df = pd.DataFrame(datasets, columns=labels)
-
-        plt.figure(figsize=(10,5))
-        plt.bar(range(len(df.columns)), df.mean(), align='center', yerr=df.std()/np.sqrt(len(df)), color=colorlist, linewidth=1, edgecolor="black")
-        plt.xticks(range(len(df.columns)),labels, fontsize=16)
-        plt.plot([-1,int(len(df.columns))], [100, 100], "k--")
-        plt.ylim(0,120)
-        plt.title(plot_title, fontsize=30)
-        plt.ylabel("% remaining after 30 \n minute PK treatment", fontsize=25)
-        plt.text(len(labels)-0.2, 110, "n = " + str(len(df)), fontsize=16)
-        plt.show()
-        None
-
-    # can build plot using df_input_plot if you feed it a dataframe directly via datasets
-
-    if df_input_plot == True:
-
-        df = datasets
-
-        plt.figure(figsize=(10,5))
-        plt.bar(range(len(df.columns)), df.mean(), align='center', yerr=df.std()/np.sqrt(len(df)), color=colorlist, linewidth=1, edgecolor="black")
-        plt.xticks(range(len(df.columns)), labels, fontsize=16)
-        plt.plot([-1,int(len(df.columns))], [100, 100], "k--")
-        plt.ylim(0,120)
-        plt.title(plot_title, fontsize=30)
-        plt.ylabel("% remaining after 30 \n minute PK treatment", fontsize=25)
-        plt.text(len(labels)-0.2, 110, "n = " + str(len(df)), fontsize=16)
-        plt.show()
-        None
+        data = np.array(datasets).flatten()
+        time = list(timepoints)*int((len(data)/len(timepoints)))
+        time = [int(i) for i in time]
+        df = pd.DataFrame({"timepoint":time, "value":data})
+        df.to_json(output + ".json")
 
     def decay(x, a, k):
         return a * np.exp(-k * x)
 
-    data = np.array(datasets)
-    data = data.flatten()
-
-    x = []
-
-    for i in range(len(datasets)):
-        x.append(timepoints)
-
-    x = np.array(x)
-    x = x.flatten()
-
-    popt, pcov = curve_fit(decay, x, data, p0=p0)
-    plt.plot(x,data, ".")
-    plt.ylim(-10,150)
-    xdata = np.linspace(0,30,50)
-    plt.plot(xdata, decay(xdata, *popt))
-    plt.show()
-    None
+    popt, pcov = curve_fit(decay, df.timepoint, df.value, p0=p0)
     perr = np.sqrt(np.diag(pcov))
 
-    print("intercept = " + str(round(popt[0],4)) + " +/- " + str(round(perr[0],4)))
-    print("k = " + str(round(popt[1],4)) + " +/- " + str(round(perr[1],4)) + " per min")
+    plt.plot(df.timepoint,df.value, ".")
+    plt.ylabel("Detectable protein \n (normalized pixel intensity)", fontsize=14)
+    plt.xlabel("Time (minutes)", fontsize=14)
+    x_decay = np.linspace(0,500,1000)
+    plt.xlim(-1, max(df.timepoint)+5)
+    plt.ylim(0,)
+    plt.plot(x_decay, decay(x_decay, *popt))
+    plt.text(25, max(df.value)-0.1, "n = " + str(int(len(df)/len(df.timepoint.unique()))))
+    plt.tight_layout()
+    plt.savefig(output + "_decay_curve.svg", dpi=100)
+    plt.show()
+    None
 
-    return df, popt, perr
+    print("k (decay) = " + str(round(popt[1],4)) + " +/- " + str(round(perr[1],4)) + " per min")
+
+    return popt, perr
 
 def half_life_calculator(ks, errs):
 
@@ -267,11 +241,11 @@ def half_life_calculator(ks, errs):
     t_errs = []
 
     for i in range(len(ks)):
-        t = (0.693/ks[i])/60
+        t = (0.693/ks[i])
         ts.append(t)
 
     for i in range(len(errs)):
-        d = np.abs(ts[i])*np.sqrt((errs[i]/ks[i])**2)
+        d = np.sqrt(((0.693/ks[i]**2)**2)*(errs[i]**2))
         t_errs.append(d)
 
     ts = np.array([ts])
@@ -289,21 +263,21 @@ def aggregator(df_list, column=-1):
     for i in range(len(df_list)):
 
         mean = np.mean(df_list[i][df_list[i].columns[column]])
-        err = np.std(df_list[i][df_list[i].columns[column]])/np.sqrt(len(df_list[i][df_list[i].columns[column]]))
+        stderr = np.std(df_list[i][df_list[i].columns[column]])/np.sqrt(len(df_list[i][df_list[i].columns[column]]))
         means.append(mean)
-        errors.append(err)
+        stderrors.append(stderr)
 
-    return means, errors
+    return means, stderrors
 
 def aggregate_plotter(data, errors, labels, colorlist, y_pos, ylabel, xlabel, figname, savefig=False):
 
     df = pd.DataFrame({"data":data, "errors":errors})
-    df['labels'] = labels
+    df['labels'] = labelsm63f_hd
     df['colors'] = colorlist
 
     plt.figure(figsize=(6,4))
     plt.bar(y_pos, df.data, color=df.colors, align='center', yerr=df.errors, width=0.75)
-    plt.xticks(y_pos, labels)
+    plt.xticks(range(len()))
     plt.yticks(fontsize=16)
     plt.ylabel(ylabel, fontsize=20)
     plt.xlabel(xlabel, fontsize=20)
