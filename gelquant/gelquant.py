@@ -296,3 +296,26 @@ def aggregate_plotter(data, errors, labels, colorlist, y_pos, ylabel, xlabel, fi
     None
 
     return df
+
+def fancy_plotter(dataset, ks, errs, colors, output, ylim=None, ylabel=None, log=True, labeling=True):
+
+    f, ax = plt.subplots(1, 1, figsize=(len(dataset)/1.6,5))
+
+    ax.bar(np.arange(len(ks)), ks, yerr=[np.zeros(len(errs)), errs], color=colors,
+           edgecolor="black", capsize=7)
+
+    labels = [i.split(".")[0] for i in dataset]
+
+    if log == True:
+        ax.set_yscale('log')
+    ax.set_ylim(ylim)
+
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    if labeling==True:
+        plt.xticks(range(len(ks)), labels, rotation=90, fontsize=20)
+    else:
+        plt.xticks(range(len(ks)), "", rotation=90, fontsize=20)
+    plt.ylabel(ylabel)
+    f.savefig(output, bbox_inches = "tight", dpi=1000)
+    None
