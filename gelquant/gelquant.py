@@ -8,6 +8,7 @@ from natsort import natsorted, ns
 from scipy.integrate import trapz
 from scipy.stats import norm
 from scipy.optimize import curve_fit
+from decimal import Decimal
 
 
 def image_cropping(path, x1, y1, x2, y2):
@@ -129,7 +130,7 @@ def lane_parser(img, lanes, groups, baseline1, baseline2, tolerance=0.1, plot_ou
 
     return final_data, all_bounds[0]
 
-def area_integrator(data, bounds, groups, plot_output=False):
+def area_integrator(data, bounds, groups, plot_output=False, percentages=True):
 
     def linear_baseline(x, m, b):
         return m*x+b
@@ -191,14 +192,20 @@ def area_integrator(data, bounds, groups, plot_output=False):
 
     sorted_areas = [item for sublist in sorted_areas for item in sublist]
 
-    return sorted_areas/sorted_areas[0]
+    if percentages == True:
+        return sorted_areas/sorted_areas[0]
+    else:
+        return sorted_areas
 
 def summary_data(datasets, timepoints="", output="", p0=[7, 0.2], input_df = False):
+
+    plt.figure(figsize=(2.5,2.5))
+    plt.rcParams["font.family"] = "Times New Roman"
 
     if input_df == True:
         if type(datasets) != pd.core.frame.DataFrame:
             df = pd.read_json(datasets)
-            plt.title(datasets)
+            plt.title(datasets.split(".")[0])
             df.to_json(output + ".json")
         else:
             df = datasets
@@ -219,19 +226,18 @@ def summary_data(datasets, timepoints="", output="", p0=[7, 0.2], input_df = Fal
     perr = np.sqrt(np.diag(pcov))
 
     plt.plot(df.timepoint,df.value, ".")
-    plt.ylabel("Detectable protein \n (normalized pixel intensity)", fontsize=14)
-    plt.xlabel("Time (minutes)", fontsize=14)
-    x_decay = np.linspace(0,500,1000)
+    plt.ylabel("Normalized \n pixel intensity", fontsize=10)
+    plt.xlabel("Time (minutes)", fontsize=10)
+    x_decay = np.linspace(0,1000,1000)
     plt.xlim(-1, max(df.timepoint)+5)
     plt.ylim(0,)
+    plt.text(0.5,0.5,"k = " + f"{Decimal(str(popt[1])):.2E}" + "\n" + r' $\pm$ ' + f"{Decimal(str(perr[1])):.2E}" + r' min$^{-1}$', fontsize=10)
     plt.plot(x_decay, decay(x_decay, *popt))
-    plt.text(25, max(df.value)-0.1, "n = " + str(int(len(df)/len(df.timepoint.unique()))))
+
     plt.tight_layout()
     plt.savefig(output + "_decay_curve.svg", dpi=100)
     plt.show()
     None
-
-    print("k (decay) = " + str(round(popt[1],4)) + " +/- " + str(round(perr[1],4)) + " per min")
 
     return popt, perr
 

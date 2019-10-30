@@ -1,4 +1,5 @@
 README.md
+setup.py
 gelquant/__init__.py
 gelquant/__version__.py
 gelquant/cli.py
