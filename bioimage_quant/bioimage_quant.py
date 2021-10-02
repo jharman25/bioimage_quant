@@ -9,6 +9,7 @@ from scipy.integrate import trapz
 from scipy.stats import norm
 from scipy.optimize import curve_fit
 from decimal import Decimal
+import glob
 
 
 def image_cropping(path, x1, y1, x2, y2):
@@ -37,7 +38,7 @@ def image_cropping(path, x1, y1, x2, y2):
 
     return image2
 
-def lane_parser(img, lanes, groups, baseline1, baseline2, tolerance=0.1, plot_output=False):
+def gel_parser(img, lanes, groups, baseline1, baseline2, tolerance=0.1, weights=True, plot_output=False):
 
     if "tmp" not in os.listdir():
         os.mkdir("tmp")
@@ -78,9 +79,12 @@ def lane_parser(img, lanes, groups, baseline1, baseline2, tolerance=0.1, plot_ou
         final_intensities = []
 
         for i in range(len(all_intensities)):
-            x = np.linspace(norm.ppf(0.01), norm.ppf(0.99), len(all_intensities[i]))
-            weights = norm.pdf(x)
-            ave_intensity = np.average(all_intensities[i], weights=weights*sum(weights))
+            if weights == True:
+                x = np.linspace(norm.ppf(0.01), norm.ppf(0.99), len(all_intensities[i]))
+                weight = norm.pdf(x)
+                ave_intensity = np.average(all_intensities[i], weights=weight*sum(weight))
+            else:
+                ave_intensity = np.average(all_intensities[i])
             final_intensities.append(ave_intensity)
 
         final_intensities = np.array(final_intensities) - np.mean(final_intensities[baseline1:baseline2])
@@ -129,6 +133,82 @@ def lane_parser(img, lanes, groups, baseline1, baseline2, tolerance=0.1, plot_ou
 
 
     return final_data, all_bounds[0]
+
+def spot_calculator(img, num_samples, baseline1, baseline2, groups=1):
+
+    if "tmp" not in os.listdir():
+        os.mkdir("tmp")
+
+    image_array = np.array(img)
+
+    lane_list = np.arange(num_samples)
+    
+    #rcParams.update({'font.size':6})
+    
+    for i in range(len(lane_list)):
+        image_slice = img.crop((len(image_array[0])*i/num_samples, 0,
+                         len(image_array[0])*(i+1)/num_samples, len(image_array)))
+        image_slice.save("tmp/lane-" + str(lane_list[i]+1) + ".png","PNG")
+        p = int(f"19{2*i+1}")
+        plt.subplot(p)
+        plt.imshow(image_slice)
+    plt.show()
+
+    image_list = []
+
+    for i in sorted(os.listdir("tmp")):
+        if ".png" in i:
+            image_list.append(i)
+
+    image_list = natsorted(image_list, key=lambda y: y.lower())
+
+    final_data = []
+
+    for i in range(len(image_list)):
+
+        data = np.array(Image.open("tmp/" + image_list[i]))
+
+        intensities = []
+
+        for j in range(len(data)):
+            row_intensities = []
+            for k in range(len(data[0])):
+                pixel = data[j,k]
+                
+                # RGB pixel intensity equation to convert to grayscale
+                # "coefficients represent typical trichromat human color perceptions"
+                # See https://en.wikipedia.org/wiki/Grayscale#Converting_color_to_grayscale
+                # y = 0.2126*R + 0.7152*G + 0.0722*B
+                # put on scale of 0-1 by dividing each value by 255
+                
+                intensity = 0.2126*pixel[0]/255 + 0.7152*pixel[1]/255 + 0.0722*pixel[2]/255
+                row_intensities.append(intensity)
+            intensities.append(row_intensities)
+
+        intensities = np.array(intensities)
+        
+        # background subtraction - user-specified background region of image
+        final_intensities = intensities 
+        #- np.mean(intensities[baseline1:baseline2])
+        final_data.append(final_intensities)
+    
+    # plot data values
+    
+    values = []
+
+    for i in range(len(final_data)):
+        values.append(np.sum(final_data[i]))
+
+    #rcParams.update({'font.size':12})
+        
+    plt.bar([1,2,3,4,5], values)
+
+    plt.ylabel("Spot intensity\n(sum of pixel intensities)")
+    plt.xlabel("spot #")
+
+    shutil.rmtree("tmp/", ignore_errors=True)
+   
+    return final_data
 
 def area_integrator(data, bounds, groups, plot_output=False, percentages=True):
 
