@@ -1,0 +1,16 @@
+,plate_row_identifier,spot,value,image_path
+0,f_p1_row1.npy,1,40.471236363636365,yeast_spotting_example.png
+1,f_p1_row1.npy,2,30.769236363636367,yeast_spotting_example.png
+2,f_p1_row1.npy,3,20.14629696969697,yeast_spotting_example.png
+3,f_p1_row1.npy,4,6.250539393939391,yeast_spotting_example.png
+4,f_p1_row1.npy,5,4.485690909090906,yeast_spotting_example.png
+5,f_p1_row2.npy,1,33.3509696969697,yeast_spotting_example.png
+6,f_p1_row2.npy,2,22.310636363636362,yeast_spotting_example.png
+7,f_p1_row2.npy,3,7.167939393939392,yeast_spotting_example.png
+8,f_p1_row2.npy,4,3.7079696969696982,yeast_spotting_example.png
+9,f_p1_row2.npy,5,1.7857272727272715,yeast_spotting_example.png
+10,f_p1_row3.npy,1,1.4722666666666697,yeast_spotting_example.png
+11,f_p1_row3.npy,2,-1.362278787878786,yeast_spotting_example.png
+12,f_p1_row3.npy,3,-2.8534606060606045,yeast_spotting_example.png
+13,f_p1_row3.npy,4,-2.5272181818181814,yeast_spotting_example.png
+14,f_p1_row3.npy,5,-0.47127878787878785,yeast_spotting_example.png

@@ -10,9 +10,9 @@ from scipy.stats import norm
 from scipy.optimize import curve_fit
 from decimal import Decimal
 import glob
+from pdf2image import convert_from_path
 
-
-def image_cropping(path, x1, y1, x2, y2):
+def image_cropping(path, x1, y1, x2, y2, output):
 
     """
     Crop image in preparation for gel analysis.
@@ -23,11 +23,14 @@ def image_cropping(path, x1, y1, x2, y2):
     """
 
     image = Image.open(path)
-    plt.figure(figsize=(7,14))
+        
+    plt.figure(figsize=(9,18))
     plt.subplot(121)
     plt.imshow(image)
     plt.title("original image")
 
+    print(f"Box size = {(x2-x1)*(y2-y1)} pixels")
+    
     image2 = image.crop((x1, y1, x2, y2))
     plt.subplot(122)
     plt.imshow(image2)
@@ -35,14 +38,159 @@ def image_cropping(path, x1, y1, x2, y2):
 
     plt.tight_layout()
     plt.show()
+    
+    image_array = np.array(image2.convert("L"))
+    np.save(output, image_array)
+    
+    return image_array
 
+def image_cropping_gels(path, x1, y1, x2, y2):
+
+    """
+    Crop image in preparation for gel analysis.
+    x and y values correspond to two points in gel
+    at which cropping will happen - (x1,y1) is the top
+    left point, while (x2,y2) is the bottom right point,
+    thus cropping the image between the two points.
+    """
+
+    image = Image.open(path)
+        
+    plt.figure(figsize=(9,18))
+    plt.subplot(121)
+    plt.imshow(image)
+    plt.title("original image")
+
+    print(f"Box size = {(x2-x1)*(y2-y1)} pixels")
+    
+    image2 = image.crop((x1, y1, x2, y2))
+    plt.subplot(122)
+    plt.imshow(image2)
+    plt.title("cropped image")
+
+    plt.tight_layout()
+    plt.show()
+    
     return image2
+
+def intensity_calculator(img, num_samples, groups=1):
+
+    if "tmp" not in os.listdir():
+        os.mkdir("tmp")
+
+    image_array = np.array(img)
+
+    lane_list = np.arange(num_samples)
+    
+    #rcParams.update({'font.size':6})
+    
+    for i in range(len(lane_list)):
+        image_slice = img.crop((len(image_array[0])*i/num_samples, 0,
+                         len(image_array[0])*(i+1)/num_samples, len(image_array)))
+        image_slice.save("tmp/lane-" + str(lane_list[i]+1) + ".png","PNG")
+        p = int(f"19{2*i+1}")
+        plt.subplot(p)
+        plt.imshow(image_slice)
+    plt.show()
+
+    image_list = []
+
+    for i in sorted(os.listdir("tmp")):
+        if ".png" in i:
+            image_list.append(i)
+
+    image_list = natsorted(image_list, key=lambda y: y.lower())
+
+    final_data = []
+
+    for i in range(len(image_list)):
+
+        data = np.array(Image.open("tmp/" + image_list[i]))
+
+        intensities = []
+
+        for j in range(len(data)):
+            row_intensities = []
+            for k in range(len(data[0])):
+                pixel = data[j,k]
+                
+                # RGB pixel intensity equation to convert to grayscale
+                # "coefficients represent typical trichromat human color perceptions"
+                # See https://en.wikipedia.org/wiki/Grayscale#Converting_color_to_grayscale
+                # y = 0.2126*R + 0.7152*G + 0.0722*B
+                # put on scale of 0-1 by dividing each value by 255
+                
+                intensity = 0.2126*pixel[0]/255 + 0.7152*pixel[1]/255 + 0.0722*pixel[2]/255
+                row_intensities.append(intensity)
+            intensities.append(row_intensities)
+
+        intensities = np.array(intensities)
+        
+        # background subtraction - user-specified background region of image
+        final_intensities = intensities 
+        #- np.mean(intensities[baseline1:baseline2])
+        final_data.append(final_intensities)
+    
+    # plot data values
+    
+    values = []
+
+    for i in range(len(final_data)):
+        values.append(np.sum(final_data[i]))
+
+    #rcParams.update({'font.size':12})
+
+    shutil.rmtree("tmp/", ignore_errors=True)
+    
+    bg = 0
+
+    for i in range(len(final_data)):
+        bg = bg + np.sum(final_data[i][:50])
+    
+    plt.bar([1,2,3,4,5], values-bg)
+    plt.ylabel("Spot intensity\n(sum of pixel intensities)")
+    plt.xlabel("spot #")
+
+    return values-bg
+
+def spot_calculator(image_array, num_samples, baseline1=0, baseline2=50, groups=1):
+
+    # this is grabbing the entire top 50 rows of pixels and averaging them for background
+    row_background = np.mean(image_array[baseline1:baseline2].flatten())
+    
+    lane_list = np.arange(num_samples)
+    
+    data = []
+    
+    for i in range(len(lane_list)):
+        spacing = int(len(image_array[i])/num_samples)
+        i1 = spacing*i
+        i2 = spacing*(i+1)
+        grey_slice = image_array[baseline2:,i1:i2]
+        intensity = np.mean(grey_slice[baseline2:].flatten())
+        data.append(intensity-row_background) 
+        
+        p = int(f"19{2*i+1}")
+        plt.subplot(p)
+        image_slice = Image.fromarray(grey_slice)
+        plt.imshow(image_slice)
+    plt.show()
+
+    plt.bar(np.arange(1, num_samples+1), data)
+    plt.ylabel("Spot intensity\n(sum of pixel intensities)")
+    plt.xlabel("spot #")
+    plt.ylim(-10,50)
+    plt.show()
+    None
+       
+    return data
+
 
 def gel_parser(img, lanes, groups, baseline1, baseline2, tolerance=0.1, weights=True, plot_output=False):
 
     if "tmp" not in os.listdir():
         os.mkdir("tmp")
-
+        
     image_array = np.array(img)
 
     lane_list = np.arange(lanes)
@@ -127,88 +275,15 @@ def gel_parser(img, lanes, groups, baseline1, baseline2, tolerance=0.1, weights=
             plt.plot([all_bounds[0],all_bounds[0]], [-0.1, 0.7], "--", color="green")
             plt.plot([all_bounds[1],all_bounds[1]], [-0.1, 0.7], "--", color="green")
             plt.ylim(-0.1, 0.7)
+            
             plt.show()
 
     shutil.rmtree("tmp/", ignore_errors=True)
 
-
     return final_data, all_bounds[0]
 
-def spot_calculator(img, num_samples, baseline1, baseline2, groups=1):
 
-    if "tmp" not in os.listdir():
-        os.mkdir("tmp")
 
-    image_array = np.array(img)
-
-    lane_list = np.arange(num_samples)
-    
-    #rcParams.update({'font.size':6})
-    
-    for i in range(len(lane_list)):
-        image_slice = img.crop((len(image_array[0])*i/num_samples, 0,
-                         len(image_array[0])*(i+1)/num_samples, len(image_array)))
-        image_slice.save("tmp/lane-" + str(lane_list[i]+1) + ".png","PNG")
-        p = int(f"19{2*i+1}")
-        plt.subplot(p)
-        plt.imshow(image_slice)
-    plt.show()
-
-    image_list = []
-
-    for i in sorted(os.listdir("tmp")):
-        if ".png" in i:
-            image_list.append(i)
-
-    image_list = natsorted(image_list, key=lambda y: y.lower())
-
-    final_data = []
-
-    for i in range(len(image_list)):
-
-        data = np.array(Image.open("tmp/" + image_list[i]))
-
-        intensities = []
-
-        for j in range(len(data)):
-            row_intensities = []
-            for k in range(len(data[0])):
-                pixel = data[j,k]
-                
-                # RGB pixel intensity equation to convert to grayscale
-                # "coefficients represent typical trichromat human color perceptions"
-                # See https://en.wikipedia.org/wiki/Grayscale#Converting_color_to_grayscale
-                # y = 0.2126*R + 0.7152*G + 0.0722*B
-                # put on scale of 0-1 by dividing each value by 255
-                
-                intensity = 0.2126*pixel[0]/255 + 0.7152*pixel[1]/255 + 0.0722*pixel[2]/255
-                row_intensities.append(intensity)
-            intensities.append(row_intensities)
-
-        intensities = np.array(intensities)
-        
-        # background subtraction - user-specified background region of image
-        final_intensities = intensities 
-        #- np.mean(intensities[baseline1:baseline2])
-        final_data.append(final_intensities)
-    
-    # plot data values
-    
-    values = []
-
-    for i in range(len(final_data)):
-        values.append(np.sum(final_data[i]))
-
-    #rcParams.update({'font.size':12})
-        
-    plt.bar([1,2,3,4,5], values)
-
-    plt.ylabel("Spot intensity\n(sum of pixel intensities)")
-    plt.xlabel("spot #")
-
-    shutil.rmtree("tmp/", ignore_errors=True)
-   
-    return final_data
 
 def area_integrator(data, bounds, groups, plot_output=False, percentages=True):
 
